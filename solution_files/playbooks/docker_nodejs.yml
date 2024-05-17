@@ -1,15 +1,13 @@
-- name: configure postgre container
-  hosts: _ansible_postgresql_o
+- name: Install docker
+  hosts: _ansible_nodejs_o
   become: true
-  vars_files:
-    - secret.yml
   tasks:
     - name: upgrade all packages
-      ansible.builtin.yum:
+      ansible.builtin.yum: 
         name: '*'
         state: latest
-
-    - name: remove older versions of docker
+    # we may need to uninstall any existing docker files from the centos repo first. 
+    - name: Remove docker if installed from CentOS repo
       ansible.builtin.yum:
         name:
           - docker
@@ -22,24 +20,24 @@
           - docker-engine
         state: removed
 
-    - name: install yum-utils
+  # yum-utils is a collection of tools and programs for managing yum repositories, installing debug packages, source packages, extended information from repositories and administration.
+    - name: Install yum utils
       ansible.builtin.yum:
-        name: yum-utils
+        name: "yum-utils"
         state: latest
 
-    - name: add docker repo
+  # set up the repository (`yum_repository` modul can be used.)
+    - name: Add Docker repo
       ansible.builtin.get_url:
         url: https://download.docker.com/linux/centos/docker-ce.repo
-        dest: /etc/yum.repos.d/docker-ce.repo 
+        dest: /etc/yum.repos.d/docker-ce.repo
 
-    - name: install docker
+    - name: Install Docker
       ansible.builtin.package:
         name: docker-ce
         state: latest
 
-        # sudo usermod -a -G docker ec2-user
-
-    - name: add ec2-user to docker group
+    - name: Add user ec2-user to docker group
       ansible.builtin.user:
         name: ec2-user
         groups: docker
@@ -51,48 +49,45 @@
         state: started
         enabled: yes
 
-    - name: copy files to postgre node
+    - name: copy files to the nodejs node
       ansible.builtin.copy:
-        src: /home/ec2-user/ansible/ansible-project/postgres/
-        dest: /home/ec2-user/postgresql
+        src: /home/ec2-user/ansible/ansible-project/nodejs/
+        dest: /home/ec2-user/nodejs 
 
-    - name: remove cw_postgre container
+    - name: remove cw_nodejs container
       community.docker.docker_container:
-        name: cw_postgre
+        name: cw_nodejs
         state: absent
         force_kill: true
 
-    - name: remove clarusway/postgre image
+  # Remove the image if it exists
+    - name: remove clarusway/nodejs image
       community.docker.docker_image:
-        name: clarusway/postgre
+        name: clarusway/nodejs
         state: absent
 
-    - name: build the container image
+    - name: build container image
       community.docker.docker_image:
-        name: clarusway/postgre
+        name: clarusway/nodejs
         build:
-          path: /home/ec2-user/postgresql
+          path: /home/ec2-user/nodejs
         source: build
         state: present
       register: image_info
 
-    - name: print the image info 
+    - name: print the image info
       ansible.builtin.debug:
         var: image_info
 
-    - name: launch postgresql docker container
+    - name: Launch nodejs docker container
       community.docker.docker_container:
-        name: cw_postgre
-        image: clarusway/postgre
+        name: cw_nodejs
+        image: clarusway/nodejs
         state: started
-        ports:
-          - "5432:5432"
-        env:
-          POSTGRES_PASSWORD: "{{ password }}"
-        volumes:
-          - /db-data:/var/lib/postgresql/data
+        ports: 
+        - "5000:5000"
       register: container_info
-
+    
     - name: print the container info
       ansible.builtin.debug:
-        var: container_info 
+        var: container_info
